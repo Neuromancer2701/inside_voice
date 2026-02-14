@@ -1,0 +1,16 @@
+services:
+  firmware:
+    build: .
+    volumes:
+      - .:/workdir/project
+      - zephyr-workspace:/workdir
+    environment:
+      - BOARD=xiao_ble/nrf52840/sense
+      - ZEPHYR_BASE=/workdir/zephyr
+    command: west build -p always -b xiao_ble/nrf52840/sense .
+    # USB passthrough for flashing (uncomment and adjust as needed):
+    # devices:
+    #   - /dev/ttyACM0:/dev/ttyACM0
+
+volumes:
+  zephyr-workspace:

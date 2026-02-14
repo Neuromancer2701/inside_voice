@@ -39,3 +39,7 @@
 
 # debug information files
 *.dwo
+
+# Zephyr / West
+firmware/build/
+firmware/.west/
