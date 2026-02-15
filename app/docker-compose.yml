@@ -1,0 +1,24 @@
+services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+      - gradle-cache:/root/.gradle
+      - pub-cache:/root/.pub-cache
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    command: flutter build apk --debug
+
+  install:
+    build: .
+    volumes:
+      - .:/app
+      - gradle-cache:/root/.gradle
+      - pub-cache:/root/.pub-cache
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    command: flutter install --debug
+
+volumes:
+  gradle-cache:
+  pub-cache:

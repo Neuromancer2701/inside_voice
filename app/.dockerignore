@@ -1,0 +1,7 @@
+build/
+.dart_tool/
+.idea/
+*.iml
+.gradle/
+android/.gradle/
+android/app/build/

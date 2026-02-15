@@ -43,3 +43,11 @@
 # Zephyr / West
 firmware/build/
 firmware/.west/
+
+# Flutter app
+app/build/
+app/.dart_tool/
+app/android/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
