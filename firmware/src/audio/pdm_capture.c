@@ -68,7 +68,7 @@ int pdm_capture_start(void)
 int pdm_capture_read(void **buf, size_t *size)
 {
 	uint32_t bytes = 0;
-	int err = dmic_read(dmic_dev, 0, buf, &bytes, K_FOREVER);
+	int err = dmic_read(dmic_dev, 0, buf, &bytes, SYS_FOREVER_MS);
 
 	if (err) {
 		LOG_ERR("dmic_read failed: %d", err);
