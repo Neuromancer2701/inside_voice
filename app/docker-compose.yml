@@ -5,16 +5,18 @@ services:
       - .:/app
       - gradle-cache:/root/.gradle
       - pub-cache:/root/.pub-cache
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
     command: flutter build apk --debug
 
   install:
     build: .
+    network_mode: "host"
+    environment:
+      - ANDROID_SERIAL=192.168.50.8:5555
     volumes:
       - .:/app
       - gradle-cache:/root/.gradle
       - pub-cache:/root/.pub-cache
+      - ~/.android:/root/.android  # Share ADB keys
     devices:
       - /dev/bus/usb:/dev/bus/usb
     command: flutter install --debug

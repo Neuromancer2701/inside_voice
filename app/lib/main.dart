@@ -1,8 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import 'ui/home_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  FlutterForegroundTask.init(
+    androidNotificationOptions: AndroidNotificationOptions(
+      channelId: 'iv_recording',
+      channelName: 'Recording',
+      channelDescription: 'InsideVoice dB data recording',
+      channelImportance: NotificationChannelImportance.LOW,
+    ),
+    iosNotificationOptions: const IOSNotificationOptions(),
+    foregroundTaskOptions: ForegroundTaskOptions(
+      eventAction: ForegroundTaskEventAction.nothing(),
+    ),
+  );
+
   runApp(const InsideVoiceApp());
 }
 

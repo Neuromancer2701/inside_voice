@@ -5,6 +5,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../ble/ble_constants.dart';
 import '../ble/ble_service.dart';
+import '../logging/recording_service.dart';
+import 'sessions_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final BleService _ble = BleService();
+  final RecordingService _recorder = RecordingService.instance;
 
   BleConnectionStatus _status = BleConnectionStatus.disconnected;
   int _soundLevel = 0;
@@ -47,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
       Permission.locationWhenInUse,
+      Permission.notification,
     ].request();
   }
 
@@ -70,6 +74,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return mask;
   }
 
+  Future<void> _toggleRecording() async {
+    if (_recorder.isRecording.value) {
+      await _recorder.stopRecording();
+    } else {
+      await _recorder.startRecording(_ble);
+    }
+  }
+
   @override
   void dispose() {
     _statusSub?.cancel();
@@ -81,7 +93,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('InsideVoice Debug')),
+      appBar: AppBar(
+        title: const Text('InsideVoice Debug'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_open),
+            tooltip: 'Recordings',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SessionsScreen()),
+            ),
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -89,6 +113,8 @@ class _HomeScreenState extends State<HomeScreen> {
             _connectionCard(),
             const SizedBox(height: 12),
             _soundLevelCard(),
+            const SizedBox(height: 12),
+            _recordingCard(),
             const SizedBox(height: 12),
             _thresholdCard(),
             const SizedBox(height: 12),
@@ -186,6 +212,62 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _recordingCard() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _recorder.isRecording,
+      builder: (context, recording, _) {
+        return ValueListenableBuilder<Duration>(
+          valueListenable: _recorder.elapsed,
+          builder: (context, elapsed, _) {
+            final minutes = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
+            final seconds = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+            final hours = elapsed.inHours;
+            final timeStr = hours > 0
+                ? '$hours:$minutes:$seconds'
+                : '$minutes:$seconds';
+
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('Recording',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        if (recording)
+                          Chip(
+                            label: Text(timeStr),
+                            backgroundColor:
+                                Colors.red.withValues(alpha: 0.2),
+                            labelStyle: const TextStyle(color: Colors.red),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: _toggleRecording,
+                      icon: Icon(recording ? Icons.stop : Icons.fiber_manual_record),
+                      label: Text(recording ? 'Stop Recording' : 'Start Recording'),
+                      style: recording
+                          ? ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.withValues(alpha: 0.2),
+                            )
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
