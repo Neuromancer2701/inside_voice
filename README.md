@@ -5,7 +5,8 @@ A lapel pin wearable based on the Seeed Studio XIAO nRF52840 Sense that monitors
 ## Design Decisions
 
 - **Toolchain:** Zephyr RTOS (upstream, not nRF Connect SDK — the board is fully supported in mainline Zephyr)
-- **Feedback:** Onboard RGB LED + external coin vibration motor on D0 pad via N-FET + PWM
+- **Feedback:** Onboard RGB LED + NFP-C1034 coin vibration motor on D0 pad via IRLML6344 N-FET + PWM
+- **Battery:** 3.7V 250 mAh LiPo (302530), charged via onboard BQ25101 from USB-C (~25 hrs runtime, ~5 hrs overnight charge)
 - **Future app:** Flutter (not built now)
 - **Docker base:** `ghcr.io/zephyrproject-rtos/zephyr-build` (Zephyr SDK + ARM GCC pre-installed)
 

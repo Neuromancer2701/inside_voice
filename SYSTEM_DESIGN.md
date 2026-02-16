@@ -36,9 +36,26 @@ Complete system architecture for the InsideVoice wearable: firmware, mobile app,
 ### Hardware
 
 - **MCU:** Seeed Studio XIAO nRF52840 Sense
-- **Mic:** Onboard PDM (MP34DT06JTR)
+- **Mic:** Onboard PDM (MSM261D3526H1CPM)
 - **LED:** Onboard RGB (3× GPIO, active-low)
-- **Haptic:** External coin vibration motor on D0 pad via N-FET + PWM
+- **Haptic:** NFP-C1034 10mm coin vibration motor (3V, 1.5G) on D0 pad via IRLML6344 N-FET + PWM
+- **Battery:** 3.7V single-cell LiPo (~250 mAh, 302530 form factor), charged via onboard BQ25101 from USB-C at 50/100 mA
+- **Charging:** Onboard BQ25101 IC — USB-C in, BAT+/BAT- solder pads out, charge rate selectable via GPIO P0.13 (50 mA default, 100 mA fast)
+
+### Power Budget
+
+| Component | Avg Current (DC-DC mode) |
+|-----------|--------------------------|
+| nRF52840 CPU @ 64 MHz | ~3 mA |
+| BLE (advertising/connected) | ~3–5 mA |
+| PDM microphone | ~0.6 mA |
+| PDM peripheral + misc | ~1–2 mA |
+| **Total average** | **~8–12 mA** |
+| Motor buzz (intermittent peak) | ~85 mA |
+
+With a 250 mAh LiPo at ~10 mA average draw: **~25 hours runtime**. Overnight USB-C charging at 50 mA refills in ~5 hours.
+
+**Important:** The nRF52840 DC-DC converter must be enabled in firmware (`CONFIG_DCDC_NRF52X=y`) — without it, current draw roughly doubles.
 
 ### Toolchain
 
@@ -487,7 +504,7 @@ service cloud.firestore {
 8. Crashlytics integration
 
 ### Future Considerations
-- **Battery service:** Add standard BLE Battery Service (0x180F) to firmware for battery level reporting in app
+- **Battery service:** Add standard BLE Battery Service (0x180F) to firmware for battery level reporting in app (ADC on P0.31 via voltage divider enabled by P0.14)
 - **Watch companion:** WearOS/watchOS widget showing current dB level
 - **Multi-device:** Support pairing multiple InsideVoice devices per account
 - **Social/sharing:** Share session summaries or progress with a coach/therapist
