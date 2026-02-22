@@ -47,8 +47,8 @@ class RecordingService {
       }
     });
 
-    await FlutterForegroundTask.startService(
-      notificationTitle: 'InsideVoice Recording',
+    await FlutterForegroundTask.updateService(
+      notificationTitle: 'InsideVoice',
       notificationText: 'Recording dB data...',
     );
 
@@ -70,7 +70,10 @@ class RecordingService {
     await _sink?.close();
     _sink = null;
 
-    await FlutterForegroundTask.stopService();
+    await FlutterForegroundTask.updateService(
+      notificationTitle: 'InsideVoice',
+      notificationText: 'Monitoring...',
+    );
 
     final path = _currentPath;
     _currentPath = null;

@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../ble/ble_constants.dart';
 import '../ble/ble_service.dart';
+import '../ble/sync_service.dart';
 import '../logging/recording_service.dart';
 import 'sessions_screen.dart';
 
@@ -33,10 +34,16 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _requestPermissions();
 
+    _ble.onConnected = () {
+      SyncService.instance.syncIfNeeded(_ble);
+    };
+    _ble.startAutoConnect();
+
     _statusSub = _ble.statusStream.listen((status) {
       setState(() => _status = status);
       if (status == BleConnectionStatus.connected) {
         _readConfig();
+        SyncService.instance.syncIfNeeded(_ble);
       }
     });
 
@@ -86,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _statusSub?.cancel();
     _levelSub?.cancel();
+    _ble.stopAutoConnect();
     _ble.dispose();
     super.dispose();
   }
@@ -162,17 +170,46 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 8),
+            ValueListenableBuilder<SyncState>(
+              valueListenable: SyncService.instance.state,
+              builder: (context, syncState, _) {
+                if (syncState == SyncState.syncing) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Chip(label: Text('Syncing...')),
+                  );
+                } else if (syncState == SyncState.done) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Chip(label: Text('Synced')),
+                  );
+                } else if (syncState == SyncState.error) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Chip(label: Text('Sync error')),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
             _status == BleConnectionStatus.connected
                 ? ElevatedButton(
-                    onPressed: _ble.disconnect,
+                    onPressed: () {
+                      _ble.stopAutoConnect();
+                      _ble.disconnect();
+                    },
                     child: const Text('Disconnect'),
                   )
-                : ElevatedButton(
-                    onPressed: _status == BleConnectionStatus.disconnected
-                        ? _ble.scan
-                        : null,
-                    child: const Text('Scan & Connect'),
-                  ),
+                : (_status == BleConnectionStatus.scanning ||
+                        _status == BleConnectionStatus.connecting)
+                    ? const ElevatedButton(
+                        onPressed: null,
+                        child: Text('Searching...'),
+                      )
+                    : ElevatedButton(
+                        onPressed: () => _ble.startAutoConnect(),
+                        child: const Text('Start Monitoring'),
+                      ),
           ],
         ),
       ),

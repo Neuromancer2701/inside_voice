@@ -6,6 +6,7 @@ target_sources(app PRIVATE
     src/main.c
     src/app/config.c
     src/app/monitor.c
+    src/app/data_cache.c
     src/audio/pdm_capture.c
     src/audio/sound_level.c
     src/ble/ble_manager.c

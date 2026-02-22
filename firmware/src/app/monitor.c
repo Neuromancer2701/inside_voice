@@ -1,5 +1,6 @@
 #include "monitor.h"
 #include "config.h"
+#include "data_cache.h"
 #include "../audio/pdm_capture.h"
 #include "../audio/sound_level.h"
 #include "../feedback/led.h"
@@ -26,6 +27,8 @@ static void monitor_thread_fn(void *p1, void *p2, void *p3)
 	int over_count = 0;
 	int under_count = 0;
 	bool feedback_active = false;
+	static int block_count = 0;
+	static uint32_t db_accum = 0;
 
 	int err = pdm_capture_start();
 
@@ -54,6 +57,15 @@ static void monitor_thread_fn(void *p1, void *p2, void *p3)
 
 		/* Notify BLE clients of current level */
 		config_service_notify_level(db);
+
+		db_accum += db;
+		block_count++;
+		if (block_count >= 10) {
+			uint8_t avg_db = (uint8_t)(db_accum / block_count);
+			data_cache_push(avg_db);
+			block_count = 0;
+			db_accum = 0;
+		}
 
 		/* Get current config */
 		struct app_config cfg = app_config_get();
@@ -96,6 +108,8 @@ static struct k_thread monitor_thread_data;
 
 int monitor_start(void)
 {
+	data_cache_init();
+
 	k_thread_create(&monitor_thread_data, monitor_stack,
 			K_THREAD_STACK_SIZEOF(monitor_stack),
 			monitor_thread_fn, NULL, NULL, NULL,

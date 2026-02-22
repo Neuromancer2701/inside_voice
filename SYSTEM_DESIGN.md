@@ -55,7 +55,7 @@ Complete system architecture for the InsideVoice wearable: firmware, mobile app,
 
 With a 250 mAh LiPo at ~10 mA average draw: **~25 hours runtime**. Overnight USB-C charging at 50 mA refills in ~5 hours.
 
-**Important:** The nRF52840 DC-DC converter must be enabled in firmware (`CONFIG_DCDC_NRF52X=y`) — without it, current draw roughly doubles.
+**Important:** The nRF52840 DC-DC converter must be enabled in firmware (`CONFIG_BOARD_ENABLE_DCDC=y`) — without it, current draw roughly doubles.
 
 ### Toolchain
 
@@ -92,6 +92,7 @@ PDM Mic → DMIC Driver → Memory Slab → Monitor Thread → RMS/dB calc
 | `src/ble/config_service.{h,c}` | Custom GATT service (3 characteristics) |
 | `src/app/config.{h,c}` | NVS-backed persistent settings |
 | `src/app/monitor.{h,c}` | Core loop: audio → threshold → feedback → BLE |
+| `src/app/data_cache.{h,c}` | RAM ring buffer: 8000 dB samples (2.2 hours), thread-safe |
 
 ### BLE GATT Service
 
@@ -102,6 +103,34 @@ Service UUID: `4f490000-2ff1-4a5e-a683-4de2c5a10100`
 | Threshold | `0001` | Read, Write | uint8 | Loudness threshold in dB |
 | Sound Level | `0002` | Read, Notify | uint8 | Current sound level in dB |
 | Feedback Mode | `0003` | Read, Write | uint8 | Bitmask: bit 0 = LED, bit 1 = vibration |
+| Sample Count | `0004` | Read | uint32 LE | Number of unsynced cached samples |
+| Sync Control | `0005` | Write | uint8 | 0x01 = start stream, 0x02 = clear cache |
+| Sync Data | `0006` | Notify | 5 bytes | `{uint32 uptime_ms, uint8 db}`; sentinel = 0xFF×5 |
+
+### Auto-Sync Protocol
+
+When the app connects to the device, it automatically syncs any cached dB samples:
+
+```
+App                                    Device (nRF52840)
+ │                                          │
+ │── subscribe SYNC_DATA (0006) ──────────→ │
+ │── write 0x01 to SYNC_CTRL (0005) ──────→ │
+ │                                          │── enqueue sync_work
+ │←── notify: {uptime_ms[4], db[1]} ───────│  (5-byte records)
+ │←── notify: {uptime_ms[4], db[1]} ───────│
+ │    ... (one notify per sample) ...       │
+ │←── notify: {0xFF, 0xFF, 0xFF, 0xFF, 0xFF}│  (sentinel = done)
+ │── write 0x02 to SYNC_CTRL (0005) ──────→ │
+ │                                          │── data_cache_clear()
+```
+
+**Timestamp conversion:** Device sends `uptime_ms` (milliseconds since boot). App records `sync_wall_time` at the moment the sentinel arrives. Wall time for each sample = `sync_wall_time - (final_uptime_ms - sample_uptime_ms)`.
+
+**Output:** CSV file saved to app documents directory: `iv_sync_YYYYMMDD_HHmmss.csv`
+Columns: `timestamp_ms,db`
+
+**Firmware cache:** 8000 samples at 1 sample/second ≈ 2.2 hours of data. Stored in RAM ring buffer (`data_cache.c`). Oldest samples are overwritten when full.
 
 ### OTA / MCUboot
 
@@ -306,6 +335,16 @@ app/
 └── firebase.json
 ```
 
+### Background Operation
+
+The app runs a persistent Android foreground service (started at launch, never stopped) that:
+- Keeps the app process alive when swiped from recents
+- Maintains BLE connectivity in the background
+- Auto-reconnects to the InsideVoice device within 30 seconds when it comes in range
+- Auto-syncs cached dB samples on every connection
+
+This "always-on" architecture (similar to Fitbit/Garmin companion apps) means users never need to manually reconnect.
+
 ### BLE Data Flow (App Side)
 
 ```
@@ -509,6 +548,9 @@ service cloud.firestore {
 - **Multi-device:** Support pairing multiple InsideVoice devices per account
 - **Social/sharing:** Share session summaries or progress with a coach/therapist
 - **ML-based threshold:** Auto-adjust threshold based on ambient noise classification
+- **Google Calendar Integration:**
+  - *Simple mode:* Each calendar event type maps to a threshold preset. User tags event categories (e.g., Meeting → 65 dB, Poker Night → 80 dB). App reads the user's calendar and at the start of a matching event, automatically writes the corresponding threshold to the device via BLE.
+  - *Smart mode:* App analyzes historical dB data for recurring events (same event title + location). Computes the ambient noise floor (25th percentile of past sessions for that event type). Sets threshold = noise_floor + 10 dB. Learns and self-calibrates as more sessions accumulate.
 - **Accessibility:** VoiceOver/TalkBack support, high-contrast mode, haptic-only feedback option
 
 ---

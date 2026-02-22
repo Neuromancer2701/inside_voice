@@ -17,14 +17,23 @@ class BleService {
   StreamSubscription? _scanSub;
   StreamSubscription? _connectSub;
   StreamSubscription? _notifySub;
+  Timer? _reconnectTimer;
 
   String? _deviceId;
+  BleConnectionStatus _currentStatus = BleConnectionStatus.disconnected;
+
+  void Function()? onConnected;
 
   Stream<BleConnectionStatus> get statusStream => _statusController.stream;
   Stream<int> get soundLevelStream => _soundLevelController.stream;
 
+  void _emitStatus(BleConnectionStatus status) {
+    _currentStatus = status;
+    _statusController.add(status);
+  }
+
   void scan() {
-    _statusController.add(BleConnectionStatus.scanning);
+    _emitStatus(BleConnectionStatus.scanning);
     _scanSub?.cancel();
     _scanSub = _ble
         .scanForDevices(withServices: [])
@@ -37,7 +46,7 @@ class BleService {
 
   void _connect(String deviceId) {
     _deviceId = deviceId;
-    _statusController.add(BleConnectionStatus.connecting);
+    _emitStatus(BleConnectionStatus.connecting);
     _connectSub?.cancel();
     _connectSub = _ble
         .connectToDevice(
@@ -47,19 +56,23 @@ class BleService {
           thresholdCharUuid,
           soundLevelCharUuid,
           feedbackModeCharUuid,
+          sampleCountCharUuid,
+          syncCtrlCharUuid,
+          syncDataCharUuid,
         ],
       },
     )
         .listen((update) {
       if (update.connectionState == DeviceConnectionState.connected) {
-        _statusController.add(BleConnectionStatus.connected);
+        _emitStatus(BleConnectionStatus.connected);
         _subscribeSoundLevel();
+        onConnected?.call();
       } else if (update.connectionState ==
           DeviceConnectionState.disconnected) {
-        _statusController.add(BleConnectionStatus.disconnected);
+        _emitStatus(BleConnectionStatus.disconnected);
       }
     }, onError: (_) {
-      _statusController.add(BleConnectionStatus.disconnected);
+      _emitStatus(BleConnectionStatus.disconnected);
     });
   }
 
@@ -121,12 +134,63 @@ class BleService {
     );
   }
 
+  Future<int> readSampleCount() async {
+    final char = QualifiedCharacteristic(
+      serviceId: serviceUuid,
+      characteristicId: sampleCountCharUuid,
+      deviceId: _deviceId!,
+    );
+    final data = await _ble.readCharacteristic(char);
+    if (data.length < 4) return 0;
+    return ByteData.sublistView(Uint8List.fromList(data))
+        .getUint32(0, Endian.little);
+  }
+
+  Future<void> writeSyncCtrl(int cmd) async {
+    final char = QualifiedCharacteristic(
+      serviceId: serviceUuid,
+      characteristicId: syncCtrlCharUuid,
+      deviceId: _deviceId!,
+    );
+    await _ble.writeCharacteristicWithResponse(
+      char,
+      value: Uint8List.fromList([cmd & 0xFF]),
+    );
+  }
+
+  Stream<List<int>> get syncDataStream {
+    final char = QualifiedCharacteristic(
+      serviceId: serviceUuid,
+      characteristicId: syncDataCharUuid,
+      deviceId: _deviceId!,
+    );
+    return _ble.subscribeToCharacteristic(char);
+  }
+
+  void startAutoConnect() {
+    _reconnectTimer?.cancel();
+    scan();
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_statusController.isClosed) return;
+      if (_currentStatus == BleConnectionStatus.disconnected) {
+        scan();
+      }
+    });
+  }
+
+  void stopAutoConnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+  }
+
   void disconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _notifySub?.cancel();
     _connectSub?.cancel();
     _scanSub?.cancel();
     _deviceId = null;
-    _statusController.add(BleConnectionStatus.disconnected);
+    _emitStatus(BleConnectionStatus.disconnected);
   }
 
   void dispose() {

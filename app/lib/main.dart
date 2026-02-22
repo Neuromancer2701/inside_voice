@@ -19,6 +19,11 @@ void main() {
     ),
   );
 
+  FlutterForegroundTask.startService(
+    notificationTitle: 'InsideVoice',
+    notificationText: 'Monitoring...',
+  );
+
   runApp(const InsideVoiceApp());
 }
 
